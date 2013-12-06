@@ -1,0 +1,105 @@
+// ------------------------------------------
+//	Modo to Maya script
+//      
+// ------------------------------------------
+
+
+// ------------------------------------------
+// Global variables.
+global string $PublicPath = "/the/path/of/your/project/";
+global string $Shapes[];
+global int $SmoothValue = 2;
+global int $SmoothLevel = 2;
+
+
+
+// ------------------------------------------
+// Import a  object from Modo.
+global proc importObject(string $objectPath)
+{
+  global string $PublicPath;
+  global string $Shapes[];
+  global int $SmoothValue;
+  global int $SmoothLevel;
+
+  string $objectFileName = $PublicPath + $objectPath + ".obj";
+  string $objectName = `basenameEx($objectFileName)`;
+  string $materialParts[];
+  string $smoothAttrib;
+  string $smoothLevelAttribPath;
+
+  if (`objExists $objectName`)
+  {
+    print("    Object "+$objectName+" exist!\n");
+    $Shapes = `listRelatives -s -path $objectName`;
+    $smoothAttrib = $Shapes[0] + ".dsm";
+    $smoothLevelAttribPath = $Shapes[0] + ".smoothLevel";
+    if (`attributeQuery -node $Shapes[0] -ex "dsm"`)
+      $SmoothValue = `getAttr $smoothAttrib`;
+    if (`attributeQuery -node $Shapes[0] -ex "smoothLevel"`)
+      $SmoothLevel = `getAttr $smoothLevelAttribPath`;
+
+    select -r $objectName;
+    $Shapes = `listRelatives -s -path $objectName`;
+    $materialParts = `listConnections -type shadingEngine $Shapes`;  // get blinnsg
+    $Shapes= `listConnections -type blinn $materialParts`;			//get blinn
+    if (`objExists $Shapes[0]`)
+    {
+      print("    Delete Shape "+$Shapes[0]+"\n");
+      delete $Shapes[0];
+    }
+    if (`objExists $materialParts[0]`)
+    {
+      print("    Delete Material "+$materialParts[0]+"\n");
+      delete $materialParts[0];
+    }
+    select -r $objectName;
+    delete;
+  }
+
+  print("    File to import: "+$objectFileName+"\n");
+  file -import $objectFileName;
+  print("    ... file imported!"+"\n");
+
+
+  $Shapes = `listRelatives -s -path $objectName`;
+  $smoothAttrib = $Shapes[0]+ ".dsm";
+  $smoothLevelAttribPath = $Shapes[0]+ ".smoothLevel";
+  $SmoothValue = 0;
+  setAttr $smoothAttrib $SmoothValue;
+  setAttr $smoothLevelAttribPath $SmoothLevel;
+
+  select -r $objectName;
+}
+
+
+// ------------------------------------------
+// ModoToMaya requires Mental Ray plugin.
+if (`pluginInfo -query -loaded -name "Mayatomr"`==0) 
+{
+  loadPlugin "Mayatomr" ;
+  //setCurrentRenderer mentalRay;
+}
+
+
+// ------------------------------------------
+// Import one or several meshes from Modo..
+print ("Modo >>> Maya"+"\n");
+string $objectListFile = $PublicPath + "objMeshList.txt";
+string $fileContent;
+string $objectPathArray[];
+string $objectPath;
+int $objectCount;
+$fileId = `fopen $objectListFile "r"`;
+$fileContent = `fread $fileId $fileContent`;
+fclose $fileId;
+$objectCount = `tokenize $fileContent "\n\r" $objectPathArray`;
+for ($objectPath in $objectPathArray)
+{
+  print("  Reading object " + $objectPath + " ..."+"\n");
+  importObject($objectPath);
+}
+
+// Clears the  objects list.
+$fileId = `fopen $objectListFile "w"`;
+fclose $fileId;
